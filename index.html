@@ -5,27 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>[CCTV] Rush Hour Tracker</title>
     
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
         :root {
             --bg-dark: #060614;
-            --panel-bg: #0d0d2b;
-            --accent: #7b2ff7;
-            --accent-glow: rgba(123, 47, 247, 0.4);
+            --panel-bg: #0a0a1f;
+            --border-color: rgba(255, 255, 255, 0.1);
             --text-main: #ffffff;
-            --text-dim: #b0b0d1;
-            --card-bg: rgba(255, 255, 255, 0.05);
+            --text-dim: #aaccff;
+            --accent: #0099ff;
+            --column-heading: #6666cc; 
             
-            --color-under: #ff3366;
-            --color-over: #00ffa3;
-            --color-range: #00d1ff;
-            --color-exact: #ffcc00;
+            --color-under: #ff3333;
+            --color-range: #00ddee;
+            --color-over: #00ff44;
+            --color-exact: #ffaa00;
         }
 
         body, html {
             margin: 0; padding: 0; height: 100vh;
-            font-family: -apple-system, system-ui, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-dark);
             color: var(--text-main);
             display: flex;
@@ -33,127 +34,106 @@
             overflow: hidden;
         }
 
-        /* КАРТА */
-        #map {
-            height: 40vh;
-            width: 100%;
-            background: #000;
-            z-index: 1;
-        }
+        #map { flex-grow: 1; width: 100%; background: #121212; }
         .leaflet-layer { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
         .leaflet-control-attribution { display: none !important; }
 
-        .header-tag {
-            position: absolute; top: 15px; left: 15px; z-index: 1000;
-            background: rgba(13, 13, 43, 0.9); padding: 8px 16px;
-            border: 1px solid var(--accent); border-radius: 30px;
-            font-weight: 800; font-size: 0.65rem; letter-spacing: 1px;
-            backdrop-filter: blur(5px);
-        }
-
-        /* ПАНЕЛЬ */
-        .main-container {
-            height: 60vh;
-            background: var(--panel-bg);
-            border-top: 2px solid var(--accent);
-            border-radius: 30px 30px 0 0;
+        /* ОСНОВНАЯ ПАНЕЛЬ */
+        .bottom-panel {
+            background-color: var(--panel-bg);
+            border-top: 1px solid var(--border-color);
+            border-radius: 20px 20px 0 0;
             padding: 15px;
-            box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
-            z-index: 1001;
+            gap: 15px;
         }
 
-        .section-title {
-            font-size: 0.6rem; color: var(--accent);
-            text-transform: uppercase; font-weight: 900;
-            margin-bottom: 5px; letter-spacing: 1.2px;
-        }
-
-        /* 1. ИСХОДЫ (В РЯД) */
-        .outcomes-row {
+        /* 1. ВЕРХНЯЯ СТРОКА (ВЕРОЯТНОСТЬ ИСХОДА) */
+        .outcomes-section { width: 100%; }
+        
+        .prediction-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
+            gap: 10px;
+            margin-top: 8px;
         }
 
-        .card {
-            background: var(--card-bg); border: 1px solid rgba(255,255,255,0.05);
-            border-radius: 12px; display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            padding: 10px 2px; transition: 0.3s;
-            opacity: 0.25;
-        }
-        .card.active {
-            opacity: 1; transform: scale(1.05);
-            background: rgba(123, 47, 247, 0.15);
-            border-color: var(--accent);
-            box-shadow: 0 0 15px var(--accent-glow);
-        }
-
-        .icon-circle {
-            width: 30px; height: 30px; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 0.9rem; color: #fff; margin-bottom: 4px;
-        }
-        .icon-circle.under { background: var(--color-under); }
-        .icon-circle.range { background: var(--color-range); }
-        .icon-circle.over { background: var(--color-over); }
-        .icon-circle.exact { background: var(--color-exact); }
-
-        .label { font-size: 0.55rem; font-weight: 800; text-transform: uppercase; }
-
-        /* 2. СРЕДНИЙ БЛОК */
+        /* 2. НИЖНЯЯ СЕТКА (ЛОГ И КНОПКИ) */
         .controls-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            flex-grow: 1;
+            grid-template-columns: 1.2fr 1fr 1.5fr; /* Четкое разделение, чтобы не наезжали */
+            gap: 15px;
+            align-items: start;
         }
 
-        .col { display: flex; flex-direction: column; gap: 8px; }
+        .column { display: flex; flex-direction: column; gap: 8px; }
+        
+        h2 { 
+            font-size: 0.65rem; 
+            color: var(--column-heading); 
+            margin: 0; 
+            text-transform: uppercase; 
+            letter-spacing: 0.8px; 
+            font-weight: bold;
+        }
 
-        .upload-btn {
-            background: var(--card-bg); border: 1px dashed var(--accent);
-            border-radius: 12px; height: 50px;
+        /* ЭЛЕМЕНТЫ */
+        .upload-zone {
+            padding: 10px; border: 1px solid var(--border-color);
             display: flex; align-items: center; justify-content: center;
-            font-size: 0.65rem; color: var(--text-dim); text-align: center;
-            cursor: pointer;
+            background: rgba(255, 255, 255, 0.03); 
+            border-radius: 10px; color: var(--text-dim);
+            font-size: 0.65rem; text-align: center; cursor: pointer;
+        }
+        
+        input[type="text"] {
+            width: 100%; padding: 10px; background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color); color: var(--text-main);
+            font-size: 0.8rem; border-radius: 8px; box-sizing: border-box;
         }
 
-        input[type="text"] {
-            background: #000; border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 10px; padding: 12px; color: #fff;
-            font-size: 0.8rem; outline: none; width: 100%; box-sizing: border-box;
+        .btn-search {
+            padding: 12px; background: var(--accent); color: #fff; border-radius: 8px;
+            border: none; cursor: pointer; text-transform: uppercase; font-size: 0.7rem; font-weight: bold;
         }
 
         .log-box {
-            background: rgba(0,0,0,0.4); border-radius: 12px;
-            padding: 10px; font-size: 0.65rem; color: #00ffa3;
-            font-family: monospace; overflow-y: auto; flex-grow: 1;
-            border: 1px solid rgba(255,255,255,0.05);
-            max-height: 100px;
+            background: rgba(0,0,0,0.3); border: 1px solid var(--border-color);
+            padding: 8px; font-size: 0.7rem; color: #00ffaa;
+            height: 80px; overflow-y: auto; font-family: monospace; border-radius: 8px;
         }
 
-        /* 3. КНОПКА ВНИЗУ (ГДЕ ТЫ ОБВЕЛ) */
-        .action-container {
-            padding-top: 5px;
-            padding-bottom: 10px;
+        /* КАРТОЧКИ ИСХОДОВ */
+        .outcome-card {
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            gap: 4px; padding: 8px;
+            background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color);
+            border-radius: 10px; opacity: 0.15; transition: 0.2s;
         }
-
-        .btn-action {
-            background: linear-gradient(135deg, var(--accent), #4a148c);
-            color: white; border: none; border-radius: 15px;
-            padding: 18px; font-weight: 900; font-size: 0.85rem;
-            text-transform: uppercase; box-shadow: 0 4px 20px var(--accent-glow);
-            width: 100%;
-            letter-spacing: 1px;
+        .outcome-card.active { 
+            opacity: 1; transform: scale(1.03); 
+            background: rgba(0, 153, 255, 0.1);
+            border-color: var(--accent);
         }
-        .btn-action:active { transform: scale(0.98); opacity: 0.9; }
+        
+        .icon {
+            width: 26px; height: 26px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: white;
+        }
+        .icon.under { background: var(--color-under); }
+        .icon.range { background: var(--color-range); }
+        .icon.over { background: var(--color-over); }
+        .icon.exact { background: var(--color-exact); }
+        
+        .outcome-label { font-size: 0.55rem; font-weight: bold; text-transform: uppercase; }
 
-        input[type="file"] { display: none; }
+        .header-tag {
+            position: absolute; top: 15px; left: 20px; z-index: 1000;
+            background: rgba(0,0,0,0.8); padding: 5px 15px;
+            border: 1px solid var(--border-color); font-size: 0.75rem;
+            color: var(--text-main); border-radius: 20px;
+        }
     </style>
 </head>
 <body>
@@ -161,49 +141,50 @@
     <div class="header-tag">[CCTV] RUSH HOUR TRACKER</div>
     <div id="map"></div>
 
-    <div class="main-container">
-        <div>
-            <div class="section-title">Вероятность исхода</div>
-            <div class="outcomes-row">
-                <div class="card" id="card-under">
-                    <div class="icon-circle under">▼</div>
-                    <div class="label">Under</div>
+    <div class="bottom-panel">
+        <div class="outcomes-section">
+            <h2>4. ВЕРОЯТНОСТЬ ИСХОДА</h2>
+            <div class="prediction-row">
+                <div class="outcome-card" id="card-under">
+                    <div class="icon under">▼</div>
+                    <div class="outcome-label">Under</div>
                 </div>
-                <div class="card" id="card-range">
-                    <div class="icon-circle range">↔</div>
-                    <div class="label">Range</div>
+                <div class="outcome-card" id="card-range">
+                    <div class="icon range">↔</div>
+                    <div class="outcome-label">Range</div>
                 </div>
-                <div class="card" id="card-over">
-                    <div class="icon-circle over">▲</div>
-                    <div class="label">Over</div>
+                <div class="outcome-card" id="card-over">
+                    <div class="icon over">▲</div>
+                    <div class="outcome-label">Over</div>
                 </div>
-                <div class="card" id="card-exact">
-                    <div class="icon-circle exact">★</div>
-                    <div class="label">Exact</div>
+                <div class="outcome-card" id="card-exact">
+                    <div class="icon exact">★</div>
+                    <div class="outcome-label">Exact</div>
                 </div>
             </div>
         </div>
 
         <div class="controls-grid">
-            <div class="col">
-                <div class="section-title">Входные данные</div>
-                <label class="upload-btn">
-                    <span>ЗАГРУЗИТЬ ФОТО</span>
+            <div class="column">
+                <h2>1. ДЕЙСТВИЕ</h2>
+                <label class="upload-zone">
+                    📁 ВЫБРАТЬ ФОТО
                     <input type="file" id="img-input" accept="image/*">
                 </label>
-                <input type="text" id="text-input" placeholder="usa">
+                <button class="btn-search" onclick="doSearch()">АНАЛИЗ</button>
             </div>
 
-            <div class="col">
-                <div class="section-title">Статус системы</div>
+            <div class="column">
+                <h2>2. ДАННЫЕ</h2>
+                <input type="text" id="text-input" placeholder="Адрес...">
+            </div>
+
+            <div class="column">
+                <h2>СИСТЕМНЫЙ ЛОГ</h2>
                 <div class="log-box" id="log-display">
-                    <div>> СИСТЕМА ГОТОВА</div>
+                    <div>> Лог Rush Hour загружен.</div>
                 </div>
             </div>
-        </div>
-
-        <div class="action-container">
-            <button class="btn-action" onclick="doSearch()">ЗАПУСТИТЬ АНАЛИЗ</button>
         </div>
     </div>
 
@@ -211,12 +192,12 @@
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
     <script>
-        const map = L.map('map', {zoomControl: false, attributionControl: false}).setView([20, 0], 2);
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        const map = L.map('map', {zoomControl: false}).setView([20, 0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         let marker = null;
-
-        // Фикс черного экрана
-        window.onload = () => { setTimeout(() => { map.invalidateSize(); }, 300); };
 
         function log(msg) {
             const display = document.getElementById('log-display');
@@ -228,22 +209,21 @@
             const file = e.target.files[0];
             if (!file) return;
             resetUI();
-            log(`ФАЙЛ: ${file.name}`);
-            log(`АНАЛИЗ ТЕКСТА...`);
+            log(`Чтение изображения...`);
             try {
                 const res = await Tesseract.recognize(file, 'eng');
                 const text = res.data.text.split('\n')[0].replace(/[^a-zA-Z0-9, ]/g, '').trim();
                 document.getElementById('text-input').value = text;
-                log(`НАЙДЕНО: ${text}`);
+                log(`Найдено: ${text}`);
                 doSearch(text);
-            } catch (err) { log("ОШИБКА OCR"); }
+            } catch (err) { log("Ошибка OCR."); }
         });
 
         async function doSearch(queryOverride) {
             const query = queryOverride || document.getElementById('text-input').value;
             if (!query) return;
             resetUI();
-            log(`ПОИСК: ${query}`);
+            log("Поиск объекта...");
             try {
                 const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
                 const data = await response.json();
@@ -251,15 +231,13 @@
                     const {lat, lon} = data[0];
                     if (marker) map.removeLayer(marker);
                     marker = L.marker([lat, lon]).addTo(map);
-                    map.flyTo([lat, lon], 15, {duration: 2}); 
-                    log(`ОБЪЕКТ В ЗОНЕ ВИДИМОСТИ`);
-                    setTimeout(calculateResult, 2200);
-                } else { log("НЕ НАЙДЕНО"); }
-            } catch (e) { log("ОШИБКА СЕТИ"); }
+                    map.flyTo([lat, lon], 16, {duration: 2});
+                    setTimeout(() => { calculateFinalResult(); }, 2100);
+                } else { log("Адрес не найден."); }
+            } catch (e) { log("Ошибка сети."); }
         }
 
-        function calculateResult() {
-            log("АНАЛИЗ ЗАВЕРШЕН");
+        function calculateFinalResult() {
             const options = ['card-under', 'card-over'];
             const winner = options[Math.floor(Math.random() * options.length)];
             document.getElementById(winner).classList.add('active');
@@ -267,7 +245,7 @@
         }
 
         function resetUI() {
-            document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.outcome-card').forEach(c => c.classList.remove('active'));
         }
     </script>
 </body>
